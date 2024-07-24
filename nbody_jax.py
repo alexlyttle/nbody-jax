@@ -45,14 +45,12 @@ def simulate(start_time, end_time, position, velocity, max_steps=1000000, times=
     if times is not None:
         subs["times"] = SubSaveAt(ts=times)
 
-    # subs = jax.tree.map(lambda ts: SubSaveAt(ts=ts), time)
     saveat = SaveAt(subs=subs)
 
     rtol = 1e-7
     atol = 1e-9
     stepsize_controller = PIDController(rtol=rtol, atol=atol)
 
-    # all_times = jnp.concatenate(jax.tree.leaves(time))     
     if progress_meter is None:
         progress_meter = NoProgressMeter()
 
