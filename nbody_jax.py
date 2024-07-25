@@ -4,21 +4,32 @@ _ENABLE_X64 = True
 jax.config.update("jax_enable_x64", _ENABLE_X64)
 
 import click
+import diffrax
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+from typing import Optional
 from pprint import pprint
 from time import time
-from diffrax import diffeqsolve, Dopri8, ODETerm, SaveAt, PIDController, SubSaveAt, TqdmProgressMeter, NoProgressMeter
 from matplotlib.collections import LineCollection
+from jax.typing import PyTree, ArrayLike
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
 _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
 
 
-def pairwise_acceleration(position, eps=_DEFAULT_EPS):
+def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp.ndarray:
+    """Calculates the pairwise acceleration between particles.
+    
+    Args:
+        position: The position of particles, must have shape (N,) where N is the number of particles.
+        eps: The softening parameter to avoid singularities.
+    
+    Returns:
+        The pairwise acceleration between particles.
+    """
     distance_squared = -2 * position @ position.T
     diag = -0.5 * jnp.einsum("ii->i", distance_squared)  # points to the diagonal inplace
     distance_squared += diag + diag[:, None]
@@ -28,33 +39,66 @@ def pairwise_acceleration(position, eps=_DEFAULT_EPS):
         axis=0
     )
 
-def vector_field(_t, y, _args):
+@jax.jit
+def vector_field(_t, y: PyTree, _args) -> PyTree:
+    """The vector field for the `diffrax.diffeqsolve`.
+    
+    Args:
+        _t: The time (unused).
+        y: A tuple or list of the particle positions and velocities.
+        _args: Additional arguments (unused).
+    
+    Returns:
+        A tuple of the particle velocities and accelerations.
+    """
     position, velocity = y
     acceleration = pairwise_acceleration(position)
     return (velocity, acceleration)
 
-@jax.jit
-def simulate(start_time, end_time, position, velocity, max_steps=1000000, times=None, progress_meter=None):
-    term = ODETerm(vector_field)
-    solver = Dopri8()
+def simulate(
+        start_time: float,
+        end_time: float,
+        position: ArrayLike, 
+        velocity: ArrayLike, 
+        max_steps: int=1000000, 
+        times: Optional[ArrayLike]=None, 
+        show_progress: bool=False
+    ) -> diffrax.Solution:
+    """Simulate the system of particles.
+    
+    Args:
+        start_time: The start time of the simulation.
+        end_time: The end time of the simulation.
+        position: The initial position of particles.
+        velocity: The initial velocity of particles.
+        max_steps: The maximum number of steps.
+        times: The times at which to save the solution.
+        progress_meter: The progress meter.
+    
+    Returns:
+        The solution of the simulation.
+    """
+    term = diffrax.ODETerm(vector_field)
+    solver = diffrax.Dopri8()
 
     subs = {
-        "steps": SubSaveAt(steps=True),
+        "steps": diffrax.SubSaveAt(steps=True),
     }
 
     if times is not None:
-        subs["times"] = SubSaveAt(ts=times)
+        subs["times"] = diffrax.SubSaveAt(ts=times)
 
-    saveat = SaveAt(subs=subs)
+    saveat = diffrax.SaveAt(subs=subs)
 
     rtol = 1e-7
     atol = 1e-9
-    stepsize_controller = PIDController(rtol=rtol, atol=atol)
+    stepsize_controller = diffrax.PIDController(rtol=rtol, atol=atol)
 
-    if progress_meter is None:
-        progress_meter = NoProgressMeter()
+    progress_meter = diffrax.NoProgressMeter()
+    if show_progress:
+        progress_meter = diffrax.TqdmProgressMeter(refresh_steps=100)   
 
-    solution = diffeqsolve(
+    solution = diffrax.diffeqsolve(
         term,
         solver,
         t0=start_time,
@@ -69,7 +113,24 @@ def simulate(start_time, end_time, position, velocity, max_steps=1000000, times=
 
     return solution
 
-def create_animation(position, frame_rate=60, padding=0.05, memory=None):
+def create_animation(
+        position: jnp.ndarray,
+        frame_rate: float=60.0,
+        padding: float=0.05,
+        memory: Optional[int]=None
+    ) -> animation.FuncAnimation:
+    """Create an animation of the particle positions.
+    
+    Args:
+        position: The position of particles.
+        frame_rate: The frame rate of the animation.
+        padding: The axes padding as a fraction of the position range.
+        memory: The number of frames to remember (defaults to all frames).
+    
+    Returns:
+        The animation.
+    """
+    
     num_frames = position.shape[0]
     num_points = position.shape[1]
 
@@ -154,16 +215,29 @@ def plot(position, velocity):
 @click.option("--animation-filename", type=click.Path(dir_okay=False, writable=True), help="Save animation to given filename.",
               show_default=True)
 def cli(
-    num_points,
-    num_dim,
-    seed,
-    duration,
-    show_progress,
-    animate,
-    animation_duration,
-    animation_fps,
-    animation_filename,
-):
+    num_points: int,
+    num_dim: int,
+    seed: int,
+    duration: float,
+    show_progress: bool,
+    animate: bool,
+    animation_duration: float,
+    animation_fps: float,
+    animation_filename: str,
+) -> None:
+    """CLI for the n-body simulation.
+    
+    Args:
+        num_points: The number of particles.
+        num_dim: The number of dimensions.
+        seed: The random seed.
+        duration: The simulation duration.
+        show_progress: Show progress bar.
+        animate: Animate the simulation.
+        animation_duration: The animation duration.
+        animation_fps: The animation frame rate.
+        animation_filename: The animation filename.
+    """
 
     rng = np.random.default_rng(seed=seed)
     init_position, init_velocity = rng.standard_normal((2, num_points, num_dim))
@@ -171,14 +245,10 @@ def cli(
     times = None
     if animate:
         num_frames = int(animation_duration * animation_fps)
-        times = jnp.linspace(0, duration, num_frames)
-
-    progress_meter = NoProgressMeter()
-    if show_progress:
-        progress_meter = TqdmProgressMeter(refresh_steps=100)   
+        times = jnp.linspace(0, duration, num_frames)        
 
     start = time()
-    solution = simulate(0.0, duration, init_position, init_velocity, times=times, progress_meter=progress_meter)
+    solution = simulate(0.0, duration, init_position, init_velocity, times=times, show_progress=show_progress)
     elapsed = time() - start
 
     print(f"Completed in {elapsed:.3f} seconds.")
