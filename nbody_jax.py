@@ -10,10 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from typing import Optional, Sequence
+from typing import Optional
 from pprint import pprint
 from time import time
-from matplotlib.collections import LineCollection
 from jax.typing import ArrayLike
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
@@ -40,12 +39,12 @@ def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp
     )
 
 @jax.jit
-def vector_field(_t, y: Sequence[jnp.ndarray], _args) -> Sequence[jnp.ndarray]:
+def vector_field(_t, y: tuple[jnp.ndarray], _args) -> tuple[jnp.ndarray]:
     """The vector field for the `diffrax.diffeqsolve`.
 
     Args:
         _t: The time (unused).
-        y: A tuple or list of the particle positions and velocities.
+        y: The particle positions and velocities.
         _args: Additional arguments (unused).
 
     Returns:
@@ -217,7 +216,8 @@ def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tu
               show_default=True)
 @click.option("-a", "--animation-axes", default=[(0, 1)], type=(int, int), help="The particle position axes to plot.",
               show_default=True, multiple=True)
-@click.option("--animation-filename", default="nbody_%N-%D_%A.gif", type=str, help="Save animation to given filename.", show_default=True)
+@click.option("--animation-filename", default="nbody_%N-%D_%A.gif", type=str, help="Save animation to given filename.",
+              show_default=True)
 def cli(
     num_particles: int,
     num_dim: int,
