@@ -60,7 +60,7 @@ def simulate(
         end_time: float,
         position: ArrayLike, 
         velocity: ArrayLike, 
-        max_steps: int=1000000, 
+        max_steps: Optional[int]=None, 
         times: Optional[ArrayLike]=None, 
         show_progress: bool=False
     ) -> diffrax.Solution:
@@ -82,7 +82,8 @@ def simulate(
     solver = diffrax.Dopri8()
 
     subs = {
-        "steps": diffrax.SubSaveAt(steps=True),
+        "end": diffrax.SubSaveAt(t1=True),
+        # "steps": diffrax.SubSaveAt(steps=True),  # requires max steps
     }
 
     if times is not None:
@@ -207,6 +208,7 @@ def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tu
 @click.option("-d", "--num-dim", default=2, type=int, help="Number of dimensions.", show_default=True)
 @click.option("--seed", default=0, type=int, help="Random seed.", show_default=True)
 @click.option("--duration", default=1.0, type=float, help="Simulation duration.", show_default=True)
+@click.option("--max-steps", type=int, help="Maximum number of steps.", show_default=True)
 @click.option("--show-progress", is_flag=True, help="Show progress bar.", show_default=True)
 @click.option("--show-animation", is_flag=True, help="Show animation of simulation.", show_default=True)
 @click.option("--save-animation", is_flag=True, help="Save animation to file.", show_default=True)
@@ -221,6 +223,7 @@ def cli(
     num_dim: int,
     seed: int,
     duration: float,
+    max_steps: Optional[int],
     show_progress: bool,
     show_animation: bool,
     save_animation: bool,
@@ -230,6 +233,10 @@ def cli(
     animation_filename: str,
 ) -> None:
     """Run an N-body simulation using JAX.
+
+    For example, to simulate 20 particles, run the following command:
+    
+    python nbody_jax.py 20
     \f
 
     Args:
@@ -272,7 +279,8 @@ def cli(
 
     # Run simulation
     start = time()
-    solution = simulate(0.0, duration, init_position, init_velocity, times=times, show_progress=show_progress)
+    solution = simulate(0.0, duration, init_position, init_velocity, times=times, show_progress=show_progress,
+                        max_steps=max_steps)
     elapsed = time() - start
 
     # Print solution statistics
