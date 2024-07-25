@@ -14,6 +14,7 @@ from typing import Optional
 from pprint import pprint
 from time import time
 from jax.typing import ArrayLike
+from animate import create_animation
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
 _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
@@ -112,81 +113,6 @@ def simulate(
     )
 
     return solution
-
-def create_animation(
-        position: jnp.ndarray,
-        frame_rate: float=60.0,
-        padding: float=0.05,
-        axes: Optional[tuple]=None,
-        memory: Optional[int]=None
-    ) -> animation.FuncAnimation:
-    """Create an animation of the particle positions.
-
-    Args:
-        position: The position of particles.
-        frame_rate: The frame rate of the animation.
-        padding: The axes padding as a fraction of the position range.
-        axes: The particle position axes to plot (defaults to (0, 1)).
-        memory: The number of frames to remember (defaults to all frames).
-
-    Returns:
-        The animation.
-    """
-    if axes is None:
-        axes = (0, 1)
-
-    assert len(axes) == 2, "axes must have length 2."
-
-    num_frames = position.shape[0]
-    num_particles = position.shape[1]
-
-    if memory is None:
-        memory = num_frames
-
-    position_min = position.min(axis=(0, 1))
-    position_max = position.max(axis=(0, 1))
-    position_range = position_max - position_min
-    position_padding = padding * position_range
-
-    limits = np.stack(
-        [position_min - position_padding, position_max + position_padding],
-        axis=-1
-    )
-
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
-    num_colors = len(colors)
-
-    fig, ax = plt.subplots()
-    ax.set_aspect("equal")
-    ax.set_xlabel(f"x{axes[0]}")
-    ax.set_ylabel(f"x{axes[1]}")
-    ax.set_title("position")
-
-    artists = []
-    for k in range(num_particles):
-        artists.append(ax.plot([], [], c=colors[k%num_colors])[0])
-
-    def init():
-        ax.set_xlim(limits[axes[0]])
-        ax.set_ylim(limits[axes[1]])
-        return artists
-
-    def update(i):
-        s = max(0, i-memory)
-        for j in range(num_particles):
-            artists[j].set_data(position[s:i, j, axes[0]], position[s:i, j, axes[1]])
-        return artists
-
-    ani = animation.FuncAnimation(
-        fig,
-        update,
-        num_frames,
-        interval=1000//frame_rate,
-        init_func=init,
-        blit=True,
-    )
-    return ani
 
 def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tuple) -> str:
     """Format the filename with the given parameters.
@@ -291,9 +217,7 @@ def cli(
     # Show or save animation
     if animate:
         position = solution.ys["times"][0]
-        writer = animation.PillowWriter(
-            fps=animation_fps,
-        )
+        writer = "pillow"
         for axes in animation_axes:
             ani = create_animation(position, frame_rate=animation_fps, axes=axes)
 
@@ -302,7 +226,7 @@ def cli(
 
             if save_animation:
                 filename = filename_formatter(animation_filename, num_particles, num_dim, axes)
-                ani.save(filename, writer=writer)
+                ani.save(filename, writer=writer, fps=animation_fps)
 
 if __name__ == "__main__":
     cli()
