@@ -15,6 +15,7 @@ from pprint import pprint
 from time import time
 from jax.typing import ArrayLike
 from animate import create_animation
+from solution import Solution
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
 _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
@@ -63,7 +64,7 @@ def simulate(
         max_steps: Optional[int]=None,
         times: Optional[ArrayLike]=None,
         show_progress: bool=False
-    ) -> diffrax.Solution:
+    ) -> Solution:
     """Simulate the system of particles.
 
     Args:
@@ -112,7 +113,18 @@ def simulate(
         progress_meter=progress_meter,
     )
 
-    return solution
+    num_steps = solution.stats["num_steps"]
+    if times is None:
+        return Solution(
+            solution.ys["end"][0],
+            solution.ys["end"][1],
+            num_steps,
+        )
+    return Solution(
+        solution.ys["times"][0],
+        solution.ys["times"][1],
+        num_steps,
+    )
 
 def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tuple) -> str:
     """Format the filename with the given parameters.
@@ -201,7 +213,7 @@ def cli(
     times = None
     if animate:
         num_frames = int(animation_duration * animation_fps)
-        times = jnp.linspace(0, duration, num_frames)
+        times = np.linspace(0, duration, num_frames)
 
     # Run simulation
     start = time()
@@ -210,16 +222,13 @@ def cli(
     elapsed = time() - start
 
     # Print solution statistics
-    print(f"Completed in {elapsed:.3f} seconds.")
-    print("Solution statistics:")
-    pprint(solution.stats)
+    print(f"Completed in {elapsed:.3f} seconds with {solution.num_steps} function evaluations.")
 
     # Show or save animation
     if animate:
-        position = solution.ys["times"][0]
         writer = "pillow"
         for axes in animation_axes:
-            ani = create_animation(position, frame_rate=animation_fps, axes=axes)
+            ani = create_animation(solution.position, frame_rate=animation_fps, axes=axes)
 
             if show_animation:
                 plt.show()
