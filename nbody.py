@@ -1,93 +1,131 @@
+from nbody_jax import simulate as simulate_jax
+from nbody_numpy import simulate as simulate_numpy
+
+import click
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
-from timeit import timeit
 
-def pairwise_acceleration(X, eps=1e-12):
-    distance_squared = -2 * X @ X.T
-    diag = -0.5 * np.einsum("ii->i", distance_squared)  # points to the diagonal inplace
-    distance_squared += diag + diag[:, None]
+from typing import Optional
+from time import time
+from animate import create_animation
 
-    acceleration = np.sum(
-        (X[:, None, :] - X) * (distance_squared[..., None] + eps)**-1.5,
-        axis=0
-    )
-    return acceleration
+def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tuple) -> str:
+    """Format the filename with the given parameters.
 
-def nbody(t, u, num_dim):
+    Args:
+        filename: The filename.
+        num_particles: The number of particles (replaces '%N').
+        num_dim: The number of dimensions (replaces '%D').
+        axes: The particle position axes to plot (replaces '%A').
 
-    num_points = u.shape[0] // (2 * num_dim)
-    size = num_dim * num_points
-    
-    x, dx = u[:size], u[size:]
+    Returns:
+        The formatted filename.
+    """
+    return filename.replace("%N", str(num_particles)).replace("%D", str(num_dim)).replace("%A", f"{axes[0]}-{axes[1]}")
 
-    ddx = pairwise_acceleration(x.reshape(num_points, num_dim))
+@click.command()
+@click.argument("num-particles", type=int)
+@click.option("-d", "--num-dim", default=2, type=int, help="Number of dimensions.", show_default=True)
+@click.option("--xla", is_flag=True, help="Enable XLA.", show_default=True)
+@click.option("--seed", default=0, type=int, help="Random seed.", show_default=True)
+@click.option("--duration", default=1.0, type=float, help="Simulation duration.", show_default=True)
+@click.option("--max-steps", type=int, help="Maximum number of steps.", show_default=True)
+@click.option("--show-progress", is_flag=True, help="Show progress bar.", show_default=True)
+@click.option("--show-animation", is_flag=True, help="Show animation of simulation.", show_default=True)
+@click.option("--save-animation", is_flag=True, help="Save animation to file.", show_default=True)
+@click.option("--animation-duration", default=5.0, type=float, help="Animation duration (seconds).", show_default=True)
+@click.option("--animation-fps", default=30.0, type=float, help="Animation frame rate (frames per second).",
+              show_default=True)
+@click.option("-a", "--animation-axes", default=[(0, 1)], type=(int, int), help="The particle position axes to plot.",
+              show_default=True, multiple=True)
+@click.option("--animation-filename", default="nbody_%N-%D_%A.gif", type=str, help="Save animation to given filename.",
+              show_default=True)
+def cli(
+    num_particles: int,
+    num_dim: int,
+    xla: bool,
+    seed: int,
+    duration: float,
+    max_steps: Optional[int],
+    show_progress: bool,
+    show_animation: bool,
+    save_animation: bool,
+    animation_duration: float,
+    animation_fps: float,
+    animation_axes: tuple,
+    animation_filename: str,
+) -> None:
+    """Run an N-body simulation.
 
-    du = np.zeros_like(u)
-    du[:size] = dx
-    du[size:] = ddx.ravel()
+    For example, to simulate 20 particles, run the following command:
 
-    return du
+    python nbody_jax.py 20
+    \f
 
-def simulate(t, x, dx): 
+    Args:
+        num_particles: The number of particles.
+        num_dim: The number of dimensions.
+        seed: The random seed.
+        duration: The simulation duration.
+        show_progress: Show progress bar.
+        show_animation: AShow animation of simulation.
+        save_animation: Save the animation to file.
+        animation_duration: The animation duration.
+        animation_fps: The animation frame rate.
+        animation_axes: The particle position axes to plot.
+        animation_filename: The animation filename.
+    """
+    animate = show_animation or save_animation
+    # Validation
+    if animate:
+        max_axis = max(max(axes) for axes in animation_axes)
+        if max_axis >= num_dim:
+            raise ValueError(
+                f"Animation axes contains axis value: {max_axis} which is greater or equal to the number of dimensions: {num_dim}."
+            )
 
-    num_points, num_dim = x.shape
-    size = num_points * num_dim
-    u = np.concatenate([x.flatten(), dx.flatten()])
+        min_axis = min(min(axes) for axes in animation_axes)
+        if min_axis < 0:
+            raise ValueError(
+                f"Animation axes contains axis value: {min_axis} which is less than zero."
+            )
 
-    time_span = (t.min(), t.max())
-    t_eval = t
-    atol = rtol = 1e-12
+    # Initialise positions and velocities
+    rng = np.random.default_rng(seed=seed)
+    init_position, init_velocity = rng.standard_normal((2, num_particles, num_dim))
 
-    result = solve_ivp(
-        lambda t, u: nbody(t, u, num_dim),
-        time_span,
-        u,
-        method="DOP853",
-        t_eval=t_eval,
-        atol=atol,
-        rtol=rtol,
-    )
+    # Initialise times to save the solution
+    times = None
+    if animate:
+        num_frames = int(animation_duration * animation_fps)
+        times = np.linspace(0, duration, num_frames)
 
-    x = result.y[:size].reshape((num_points, num_dim, -1))
-    dx = result.y[size:].reshape((num_points, num_dim, -1))
+    if xla:
+        simulate = simulate_jax
+    else:
+        simulate = simulate_numpy
 
-    return x, dx
+    # Run simulation
+    start = time()
+    solution = simulate(0.0, duration, init_position, init_velocity, times=times, show_progress=show_progress,
+                        max_steps=max_steps)
+    elapsed = time() - start
 
-def plot(x, dx):
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    # Print solution statistics
+    print(f"Completed in {elapsed:.3f} seconds with {solution.num_steps} function evaluations.")
 
-    for i in range(x.shape[0]):
-        axes[0].plot(x[i, 0], x[i, 1])
-        axes[1].plot(dx[i, 0], dx[i, 1])
-    
-    ax = axes[0]
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_title("position")
-    ax.set_aspect("equal")
-    
-    ax = axes[1]
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_title("velocity")
-    ax.set_aspect("equal")
-    return fig, axes
+    # Show or save animation
+    if animate:
+        writer = "pillow"
+        for axes in animation_axes:
+            ani = create_animation(solution.position, frame_rate=animation_fps, axes=axes)
 
-def main():
-    num_steps = 1000
-    num_points = 3
-    num_dim = 2
+            if show_animation:
+                plt.show()
 
-    t = np.linspace(0, 1, num_steps)
-
-    rng = np.random.default_rng(seed=0)
-    init_position, init_velocity = rng.standard_normal((2, num_points, num_dim))
-
-    position, velocity = simulate(t, init_position, init_velocity)
-    
-    plot(position, velocity)
-    plt.show()
+            if save_animation:
+                filename = filename_formatter(animation_filename, num_particles, num_dim, axes)
+                ani.save(filename, writer=writer, fps=animation_fps)
 
 if __name__ == "__main__":
-    main()
+    cli()
