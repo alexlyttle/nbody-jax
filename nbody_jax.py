@@ -22,11 +22,11 @@ _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
 
 def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp.ndarray:
     """Calculates the pairwise acceleration between particles.
-    
+
     Args:
         position: The position of particles, must have shape (N,) where N is the number of particles.
         eps: The softening parameter to avoid singularities.
-    
+
     Returns:
         The pairwise acceleration between particles.
     """
@@ -42,12 +42,12 @@ def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp
 @jax.jit
 def vector_field(_t, y: Sequence[jnp.ndarray], _args) -> Sequence[jnp.ndarray]:
     """The vector field for the `diffrax.diffeqsolve`.
-    
+
     Args:
         _t: The time (unused).
         y: A tuple or list of the particle positions and velocities.
         _args: Additional arguments (unused).
-    
+
     Returns:
         A tuple of the particle velocities and accelerations.
     """
@@ -58,14 +58,14 @@ def vector_field(_t, y: Sequence[jnp.ndarray], _args) -> Sequence[jnp.ndarray]:
 def simulate(
         start_time: float,
         end_time: float,
-        position: ArrayLike, 
-        velocity: ArrayLike, 
-        max_steps: Optional[int]=None, 
-        times: Optional[ArrayLike]=None, 
+        position: ArrayLike,
+        velocity: ArrayLike,
+        max_steps: Optional[int]=None,
+        times: Optional[ArrayLike]=None,
         show_progress: bool=False
     ) -> diffrax.Solution:
     """Simulate the system of particles.
-    
+
     Args:
         start_time: The start time of the simulation.
         end_time: The end time of the simulation.
@@ -74,7 +74,7 @@ def simulate(
         max_steps: The maximum number of steps.
         times: The times at which to save the solution.
         progress_meter: The progress meter.
-    
+
     Returns:
         The solution of the simulation.
     """
@@ -97,7 +97,7 @@ def simulate(
 
     progress_meter = diffrax.NoProgressMeter()
     if show_progress:
-        progress_meter = diffrax.TqdmProgressMeter(refresh_steps=100)   
+        progress_meter = diffrax.TqdmProgressMeter(refresh_steps=100)
 
     solution = diffrax.diffeqsolve(
         term,
@@ -163,7 +163,7 @@ def create_animation(
     ax.set_xlabel(f"x{axes[0]}")
     ax.set_ylabel(f"x{axes[1]}")
     ax.set_title("position")
-    
+
     artists = []
     for k in range(num_particles):
         artists.append(ax.plot([], [], c=colors[k%num_colors])[0])
@@ -178,7 +178,7 @@ def create_animation(
         for j in range(num_particles):
             artists[j].set_data(position[s:i, j, axes[0]], position[s:i, j, axes[1]])
         return artists
-    
+
     ani = animation.FuncAnimation(
         fig,
         update,
@@ -191,13 +191,13 @@ def create_animation(
 
 def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tuple) -> str:
     """Format the filename with the given parameters.
-    
+
     Args:
         filename: The filename.
         num_particles: The number of particles (replaces '%N').
         num_dim: The number of dimensions (replaces '%D').
         axes: The particle position axes to plot (replaces '%A').
-    
+
     Returns:
         The formatted filename.
     """
@@ -235,7 +235,7 @@ def cli(
     """Run an N-body simulation using JAX.
 
     For example, to simulate 20 particles, run the following command:
-    
+
     python nbody_jax.py 20
     \f
 
@@ -260,7 +260,7 @@ def cli(
             raise ValueError(
                 f"Animation axes contains axis value: {max_axis} which is greater or equal to the number of dimensions: {num_dim}."
             )
-        
+
         min_axis = min(min(axes) for axes in animation_axes)
         if min_axis < 0:
             raise ValueError(
@@ -275,7 +275,7 @@ def cli(
     times = None
     if animate:
         num_frames = int(animation_duration * animation_fps)
-        times = jnp.linspace(0, duration, num_frames)        
+        times = jnp.linspace(0, duration, num_frames)
 
     # Run simulation
     start = time()
@@ -296,7 +296,7 @@ def cli(
         )
         for axes in animation_axes:
             ani = create_animation(position, frame_rate=animation_fps, axes=axes)
-            
+
             if show_animation:
                 plt.show()
 
