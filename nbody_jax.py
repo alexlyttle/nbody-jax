@@ -182,26 +182,6 @@ def create_animation(
     )
     return ani
 
-def plot(position, velocity):
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-
-    for i in range(position.shape[1]):
-        axes[0].plot(position[:, i, 0], position[:, i, 1])
-        axes[1].plot(velocity[:, i, 0], velocity[:, i, 1])
-    
-    ax = axes[0]
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_title("position")
-    ax.set_aspect("equal")
-    
-    ax = axes[1]
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_title("velocity")
-    ax.set_aspect("equal")
-    return fig, axes
-
 @click.command()
 @click.argument("num-points", type=int)
 @click.option("-d", "--num-dim", default=2, type=int, help="Number of dimensions.", show_default=True)
