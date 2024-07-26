@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from typing import Optional
 from time import time
 from animate import create_animation
+from energy import kinetic_energy, potential_energy
 
 def filename_formatter(filename: str, num_particles: int, num_dim: int, axes: tuple) -> str:
     """Format the filename with the given parameters.
@@ -105,6 +106,11 @@ def cli(
     else:
         simulate = simulate_numpy
 
+    init_T = kinetic_energy(init_velocity)
+    init_V = potential_energy(init_position)
+    init_energy = init_T + init_V
+    print(f"Initial energy of the system: {init_energy:.3f}")
+
     # Run simulation
     start = time()
     solution = simulate(0.0, duration, init_position, init_velocity, times=times, show_progress=show_progress,
@@ -112,7 +118,13 @@ def cli(
     elapsed = time() - start
 
     # Print solution statistics
-    print(f"Completed in {elapsed:.3f} seconds with {solution.num_steps} function evaluations.")
+    print(f"Completed in {elapsed:.3f} seconds with {solution.num_steps} solver steps.")
+
+    T = kinetic_energy(solution.velocity[-1])
+    V = potential_energy(solution.position[-1])
+    final_energy = T + V
+    print(f"Final total energy of the system: {final_energy:.3f}")
+    print(f"Change in energy: {final_energy - init_energy:.3e}")
 
     # Show or save animation
     if animate:

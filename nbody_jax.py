@@ -11,7 +11,8 @@ from jax.typing import ArrayLike
 from solution import Solution
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
-_DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
+# _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
+_DEFAULT_EPS = 1e-12
 
 def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp.ndarray:
     """Calculates the pairwise acceleration between particles.

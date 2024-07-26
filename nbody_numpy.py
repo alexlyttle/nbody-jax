@@ -5,18 +5,18 @@ from numpy.typing import ArrayLike
 from typing import Optional
 from solution import Solution
 
-_DEFAULT_EPS = np.finfo(np.float64).eps**0.5
+# _DEFAULT_EPS = np.finfo(np.float64).eps**0.5
+_DEFAULT_EPS = 1e-12
 
 def pairwise_acceleration(position, eps=_DEFAULT_EPS):
     distance_squared = -2 * position @ position.T
     diag = -0.5 * np.einsum("ii->i", distance_squared)  # points to the diagonal inplace
     distance_squared += diag + diag[:, None]
 
-    acceleration = np.sum(
+    return np.sum(
         (position[:, None, :] - position) * (distance_squared[..., None] + eps)**-1.5,
         axis=0
     )
-    return acceleration
 
 def vector_field(_t, u, num_dim):
     num_particles = u.shape[0] // (2 * num_dim)
@@ -47,8 +47,8 @@ def simulate(
     u = np.concatenate([position.flatten(), velocity.flatten()])
 
     time_span = (start_time, end_time)
-    atol = 1e-9
     rtol = 1e-7
+    atol = 1e-9
 
     solution = solve_ivp(
         vector_field,
