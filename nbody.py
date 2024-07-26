@@ -116,7 +116,6 @@ def cli(
 
     # Show or save animation
     if animate:
-        writer = "pillow"
         for axes in animation_axes:
             ani = create_animation(solution.position, frame_rate=animation_fps, axes=axes)
 
@@ -125,7 +124,7 @@ def cli(
 
             if save_animation:
                 filename = filename_formatter(animation_filename, num_particles, num_dim, axes)
-                ani.save(filename, writer=writer, fps=animation_fps)
+                ani.save(filename, writer="pillow", fps=animation_fps)
 
 if __name__ == "__main__":
     cli()

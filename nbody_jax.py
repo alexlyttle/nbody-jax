@@ -3,23 +3,15 @@ import jax
 _ENABLE_X64 = True
 jax.config.update("jax_enable_x64", _ENABLE_X64)
 
-import click
 import diffrax
 import jax.numpy as jnp
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
 from typing import Optional
-from pprint import pprint
-from time import time
 from jax.typing import ArrayLike
-from animate import create_animation
 from solution import Solution
 
 _FLOAT_DTYPE = jnp.float64 if _ENABLE_X64 else jnp.float32
 _DEFAULT_EPS = jnp.finfo(_FLOAT_DTYPE).eps**0.5
-
 
 def pairwise_acceleration(position: jnp.ndarray, eps: float=_DEFAULT_EPS) -> jnp.ndarray:
     """Calculates the pairwise acceleration between particles.
@@ -84,7 +76,6 @@ def simulate(
 
     subs = {
         "end": diffrax.SubSaveAt(t1=True),
-        # "steps": diffrax.SubSaveAt(steps=True),  # requires max steps
     }
 
     if times is not None:

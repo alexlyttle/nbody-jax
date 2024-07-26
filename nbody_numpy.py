@@ -1,7 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
+
 from scipy.integrate import solve_ivp
-from timeit import timeit
 from numpy.typing import ArrayLike
 from typing import Optional
 from solution import Solution
